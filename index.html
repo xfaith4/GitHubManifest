@@ -5,10 +5,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GitHub Repository Manifest</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <style>
+    /* Smooth expand / collapse animation */
     .readme {
       max-height: 0;
       overflow: hidden;
@@ -22,9 +24,10 @@
 </head>
 
 <body class="bg-gray-950 text-gray-200 min-h-screen font-sans">
+
   <header class="p-6 text-center border-b border-gray-700">
     <h1 class="text-3xl font-bold text-blue-400">Ben’s GitHub Repository Manifest</h1>
-    <p class="text-gray-400">Interactive catalog of all repositories with expandable READMEs</p>
+    <p class="text-gray-400">Dynamic catalog of all repositories with expandable READMEs</p>
   </header>
 
   <!-- Controls -->
@@ -44,18 +47,21 @@
     </button>
   </div>
 
+  <!-- Repo Container -->
   <main id="repo-list" class="max-w-5xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4"></main>
 
   <script>
     // ===========================
     // Configuration
     // ===========================
-    const username = "xfaith4";  // GitHub username
-    const token = "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";             // Optional: Personal Access Token (for private repos)
+    const username = "xfaith4";  // <-- your GitHub username
+    const token = "";             // <-- Optional: GitHub Personal Access Token (for private repos)
+
     const headers = {
       "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` })
     };
+
     const repoList = document.getElementById("repo-list");
     const searchBox = document.getElementById("search");
     const sortSelect = document.getElementById("sort");
@@ -65,45 +71,103 @@
     let gridView = true;
 
     // ===========================
-    // GraphQL Query
+    // Main Fetch Function
     // ===========================
     async function fetchRepos() {
-      const query = `
-      {
-        user(login: "${username}") {
-          pinnedItems(first: 6, types: REPOSITORY) {
-            nodes {
-              ... on Repository {
+      console.log("Fetching repositories for", username);
+      try {
+        if (!token) {
+          console.warn("⚠️ No token provided — using REST API fallback (public repos only)");
+          return await fetchReposREST();
+        }
+
+        const query = `
+        {
+          user(login: "${username}") {
+            pinnedItems(first: 6, types: REPOSITORY) {
+              nodes {
+                ... on Repository {
+                  name description stargazerCount updatedAt primaryLanguage { name }
+                  url isPrivate
+                }
+              }
+            }
+            repositories(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+              nodes {
                 name description stargazerCount updatedAt primaryLanguage { name }
                 url isPrivate
               }
             }
           }
-          repositories(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
-            nodes {
-              name description stargazerCount updatedAt primaryLanguage { name }
-              url isPrivate
-            }
-          }
+        }`;
+
+        const res = await fetch("https://api.github.com/graphql", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ query })
+        });
+
+        if (res.status === 401) {
+          console.error("❌ Unauthorized (401) – invalid token or missing permissions.");
+          alert("GitHub API error: Unauthorized. Please provide a valid Personal Access Token.");
+          return await fetchReposREST(); // fallback
         }
-      }`;
 
-      const res = await fetch("https://api.github.com/graphql", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ query })
-      });
-      const data = await res.json();
+        const data = await res.json();
 
-      const pinned = data.data.user.pinnedItems.nodes.map(r => ({ ...r, isPinned: true }));
-      const others = data.data.user.repositories.nodes.filter(r => !pinned.some(p => p.name === r.name));
+        if (!data?.data?.user) {
+          console.error("Unexpected GraphQL structure:", data);
+          alert("GitHub API error: Invalid response or bad credentials. Falling back to REST API.");
+          return await fetchReposREST();
+        }
 
-      allRepos = [...pinned, ...others];
-      renderRepos();
+        const pinned = data.data.user.pinnedItems.nodes.map(r => ({ ...r, isPinned: true }));
+        const others = data.data.user.repositories.nodes.filter(r => !pinned.some(p => p.name === r.name));
+
+        allRepos = [...pinned, ...others];
+        console.log(`✅ Loaded ${allRepos.length} repos (GraphQL)`);
+        renderRepos();
+
+      } catch (err) {
+        console.error("GraphQL fetch failed:", err);
+        alert("Error loading repositories (network or token issue). Falling back to REST API.");
+        await fetchReposREST();
+      }
     }
 
     // ===========================
-    // Render
+    // REST Fallback (no token)
+    // ===========================
+    async function fetchReposREST() {
+      try {
+        const res = await fetch(`https://api.github.com/users/${username}/repos?sort=updated&per_page=100`);
+        const repos = await res.json();
+
+        if (!Array.isArray(repos)) {
+          throw new Error("Invalid REST response");
+        }
+
+        allRepos = repos.map(r => ({
+          name: r.name,
+          description: r.description,
+          stargazerCount: r.stargazers_count,
+          updatedAt: r.updated_at,
+          primaryLanguage: { name: r.language },
+          url: r.html_url,
+          isPinned: false
+        }));
+
+        console.log(`✅ Loaded ${allRepos.length} repos (REST)`);
+        renderRepos();
+
+      } catch (err) {
+        console.error("REST fallback failed:", err);
+        alert("Failed to load repositories from GitHub API.");
+      }
+    }
+
+    // ===========================
+    // Render Repo Cards
     // ===========================
     function renderRepos() {
       let filtered = allRepos.filter(r =>
@@ -111,7 +175,6 @@
         (r.description && r.description.toLowerCase().includes(searchBox.value.toLowerCase()))
       );
 
-      // Sorting logic
       switch (sortSelect.value) {
         case "pinned":
           filtered.sort((a, b) => (b.isPinned - a.isPinned) || (b.stargazerCount - a.stargazerCount));
@@ -145,7 +208,7 @@
           </div>
           <p class="text-gray-400 text-sm mt-1">${repo.description ?? "No description"}</p>
           <div class="flex space-x-4 text-xs mt-2 text-gray-500">
-            <span>⭐ ${repo.stargazerCount}</span>
+            <span>⭐ ${repo.stargazerCount ?? 0}</span>
             <span>🕒 ${new Date(repo.updatedAt).toLocaleDateString()}</span>
             <span>${repo.primaryLanguage?.name ?? ""}</span>
           </div>
@@ -158,26 +221,29 @@
     }
 
     // ===========================
-    // README Toggle
+    // Toggle README View
     // ===========================
     async function toggleReadme(repo, readmeDiv) {
       const expanded = readmeDiv.classList.toggle("expanded");
       if (!expanded) return;
-      if (readmeDiv.innerHTML.trim()) return;
+
+      if (readmeDiv.innerHTML.trim()) return; // already loaded
 
       try {
         const apiUrl = `https://api.github.com/repos/${username}/${repo.name}/readme`;
         const res = await fetch(apiUrl, { headers });
+        if (!res.ok) throw new Error(res.statusText);
         const data = await res.json();
         const decoded = atob(data.content);
         readmeDiv.innerHTML = marked.parse(decoded);
-      } catch {
+      } catch (err) {
+        console.warn(`README fetch failed for ${repo.name}:`, err);
         readmeDiv.innerHTML = "<em>README not available (private or missing)</em>";
       }
     }
 
     // ===========================
-    // Listeners
+    // Event Listeners
     // ===========================
     searchBox.addEventListener("input", renderRepos);
     sortSelect.addEventListener("change", renderRepos);
@@ -186,7 +252,9 @@
       renderRepos();
     });
 
+    // Start
     fetchRepos();
   </script>
 </body>
 </html>
+### END FILE: index.html
