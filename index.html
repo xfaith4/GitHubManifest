@@ -1,37 +1,30 @@
-### BEGIN FILE: github-manifest-advanced.html
+### BEGIN FILE: index.html
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GitHub Repository Manifest</title>
-
-  <!-- Tailwind for styling -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Marked for README markdown rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <style>
-    /* Smooth expand / collapse */
     .readme {
       max-height: 0;
       overflow: hidden;
-      transition: max-height 0.4s ease, padding 0.3s ease;
+      transition: max-height 0.5s ease, padding 0.3s ease;
     }
     .readme.expanded {
-      max-height: 1000px;
+      max-height: 2000px;
       padding-top: 1rem;
     }
   </style>
 </head>
 
 <body class="bg-gray-950 text-gray-200 min-h-screen font-sans">
-
-  <!-- Header -->
   <header class="p-6 text-center border-b border-gray-700">
-    <h1 class="text-3xl font-bold text-blue-400">Ben's GitHub Repository Manifest</h1>
-    <p class="text-gray-400">Click any repository to view its README</p>
+    <h1 class="text-3xl font-bold text-blue-400">Ben’s GitHub Repository Manifest</h1>
+    <p class="text-gray-400">Interactive catalog of all repositories with expandable READMEs</p>
   </header>
 
   <!-- Controls -->
@@ -51,66 +44,89 @@
     </button>
   </div>
 
-  <!-- Repo Container -->
   <main id="repo-list" class="max-w-5xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4"></main>
 
   <script>
-    /* =======================
-       Configuration
-       ======================= */
-    const username = "xfaith4";  // <-- your GitHub username
-    const token = "";            // <-- optional: personal access token for private repos
-    const pinnedRepos = ["GenesysCloudNotificationCollector", "SystemDashboard", "PhotoReorganizer"]; // optional
-
-    const headers = token ? { Authorization: `token ${token}` } : {};
-
+    // ===========================
+    // Configuration
+    // ===========================
+    const username = "xfaith4";  // GitHub username
+    const token = "";             // Optional: Personal Access Token (for private repos)
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token && { Authorization: `Bearer ${token}` })
+    };
     const repoList = document.getElementById("repo-list");
     const searchBox = document.getElementById("search");
     const sortSelect = document.getElementById("sort");
     const toggleViewBtn = document.getElementById("toggle-view");
 
-    let repos = [];
+    let allRepos = [];
     let gridView = true;
 
-    /* =======================
-       Fetch repositories
-       ======================= */
+    // ===========================
+    // GraphQL Query
+    // ===========================
     async function fetchRepos() {
-      const res = await fetch(`https://api.github.com/users/${username}/repos?per_page=100`, { headers });
-      repos = await res.json();
+      const query = `
+      {
+        user(login: "${username}") {
+          pinnedItems(first: 6, types: REPOSITORY) {
+            nodes {
+              ... on Repository {
+                name description stargazerCount updatedAt primaryLanguage { name }
+                url isPrivate
+              }
+            }
+          }
+          repositories(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+            nodes {
+              name description stargazerCount updatedAt primaryLanguage { name }
+              url isPrivate
+            }
+          }
+        }
+      }`;
 
-      // Tag pinned repos manually
-      repos.forEach(r => r.isPinned = pinnedRepos.includes(r.name));
+      const res = await fetch("https://api.github.com/graphql", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ query })
+      });
+      const data = await res.json();
 
+      const pinned = data.data.user.pinnedItems.nodes.map(r => ({ ...r, isPinned: true }));
+      const others = data.data.user.repositories.nodes.filter(r => !pinned.some(p => p.name === r.name));
+
+      allRepos = [...pinned, ...others];
       renderRepos();
     }
 
-    /* =======================
-       Render repositories
-       ======================= */
+    // ===========================
+    // Render
+    // ===========================
     function renderRepos() {
-      let filtered = repos.filter(r =>
+      let filtered = allRepos.filter(r =>
         r.name.toLowerCase().includes(searchBox.value.toLowerCase()) ||
         (r.description && r.description.toLowerCase().includes(searchBox.value.toLowerCase()))
       );
 
-      // Sort logic
+      // Sorting logic
       switch (sortSelect.value) {
         case "pinned":
-          filtered.sort((a, b) => (b.isPinned - a.isPinned) || (b.stargazers_count - a.stargazers_count));
+          filtered.sort((a, b) => (b.isPinned - a.isPinned) || (b.stargazerCount - a.stargazerCount));
           break;
         case "stars":
-          filtered.sort((a, b) => b.stargazers_count - a.stargazers_count);
+          filtered.sort((a, b) => b.stargazerCount - a.stargazerCount);
           break;
         case "updated":
-          filtered.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+          filtered.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
           break;
         case "name":
           filtered.sort((a, b) => a.name.localeCompare(b.name));
           break;
       }
 
-      // Build HTML
       repoList.className = gridView
         ? "max-w-5xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4"
         : "max-w-5xl mx-auto p-4 flex flex-col gap-4";
@@ -122,14 +138,16 @@
 
         card.innerHTML = `
           <div class="flex justify-between items-center">
-            <h2 class="text-xl font-semibold text-blue-300">${repo.name}</h2>
+            <h2 class="text-xl font-semibold text-blue-300">
+              <a href="${repo.url}" target="_blank" class="hover:underline">${repo.name}</a>
+            </h2>
             ${repo.isPinned ? `<span class="text-xs text-yellow-400">📌 Pinned</span>` : ""}
           </div>
           <p class="text-gray-400 text-sm mt-1">${repo.description ?? "No description"}</p>
           <div class="flex space-x-4 text-xs mt-2 text-gray-500">
-            <span>⭐ ${repo.stargazers_count}</span>
-            <span>🕒 ${new Date(repo.updated_at).toLocaleDateString()}</span>
-            <span>${repo.language ?? ""}</span>
+            <span>⭐ ${repo.stargazerCount}</span>
+            <span>🕒 ${new Date(repo.updatedAt).toLocaleDateString()}</span>
+            <span>${repo.primaryLanguage?.name ?? ""}</span>
           </div>
           <div class="readme mt-2 text-gray-300 prose prose-invert max-w-none"></div>
         `;
@@ -139,28 +157,28 @@
       });
     }
 
-    /* =======================
-       Expand / collapse README
-       ======================= */
+    // ===========================
+    // README Toggle
+    // ===========================
     async function toggleReadme(repo, readmeDiv) {
       const expanded = readmeDiv.classList.toggle("expanded");
-      if (!expanded) return; // collapsed, skip fetch
+      if (!expanded) return;
+      if (readmeDiv.innerHTML.trim()) return;
 
-      if (!readmeDiv.innerHTML.trim()) {
-        try {
-          const res = await fetch(`https://api.github.com/repos/${username}/${repo.name}/readme`, { headers });
-          const readme = await res.json();
-          const decoded = atob(readme.content);
-          readmeDiv.innerHTML = marked.parse(decoded);
-        } catch {
-          readmeDiv.innerHTML = "<em>README not available (private or missing)</em>";
-        }
+      try {
+        const apiUrl = `https://api.github.com/repos/${username}/${repo.name}/readme`;
+        const res = await fetch(apiUrl, { headers });
+        const data = await res.json();
+        const decoded = atob(data.content);
+        readmeDiv.innerHTML = marked.parse(decoded);
+      } catch {
+        readmeDiv.innerHTML = "<em>README not available (private or missing)</em>";
       }
     }
 
-    /* =======================
-       Event listeners
-       ======================= */
+    // ===========================
+    // Listeners
+    // ===========================
     searchBox.addEventListener("input", renderRepos);
     sortSelect.addEventListener("change", renderRepos);
     toggleViewBtn.addEventListener("click", () => {
@@ -172,4 +190,4 @@
   </script>
 </body>
 </html>
-### END FILE: github-manifest-advanced.html
+### END FILE: index.html
