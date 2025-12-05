@@ -42,20 +42,30 @@ Display pull request information for each repository to help users track ongoing
 - Display assigned reviewers
 
 ### Implementation Notes
-```javascript
-// GraphQL query addition for PRs
-pullRequests(first: 10, states: OPEN) {
-  nodes {
-    title
-    number
-    state
-    isDraft
-    author { login }
-    createdAt
-    mergeable
-    reviewDecision
+```graphql
+# Add to existing GraphQL query in fetchRepos()
+{
+  user(login: "${username}") {
+    repositories(first: 100) {
+      nodes {
+        name
+        # ... existing fields ...
+        pullRequests(first: 10, states: OPEN) {
+          nodes {
+            title
+            number
+            state
+            isDraft
+            author { login }
+            createdAt
+            mergeable
+            reviewDecision
+          }
+          totalCount
+        }
+      }
+    }
   }
-  totalCount
 }
 ```
 
@@ -87,19 +97,29 @@ Integrate issue tracking to show open issues and their status for each repositor
 - Highlight stale issues (no activity for X days)
 
 ### Implementation Notes
-```javascript
-// GraphQL query addition for Issues
-issues(first: 10, states: OPEN) {
-  nodes {
-    title
-    number
-    state
-    labels(first: 5) { nodes { name color } }
-    assignees(first: 3) { nodes { login } }
-    createdAt
-    updatedAt
+```graphql
+# Add to existing GraphQL query in fetchRepos()
+{
+  user(login: "${username}") {
+    repositories(first: 100) {
+      nodes {
+        name
+        # ... existing fields ...
+        issues(first: 10, states: OPEN) {
+          nodes {
+            title
+            number
+            state
+            labels(first: 5) { nodes { name color } }
+            assignees(first: 3) { nodes { login } }
+            createdAt
+            updatedAt
+          }
+          totalCount
+        }
+      }
+    }
   }
-  totalCount
 }
 ```
 

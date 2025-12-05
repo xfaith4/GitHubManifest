@@ -28,15 +28,17 @@ cd github-manifest
 ```
 
 ### 2️⃣ Configure
-Edit `index.html` and set your GitHub username:
+Open `index.html` in a text editor and find the configuration section near line 56. Set your GitHub username:
 ```javascript
-const username = "your-github-username";
+// In index.html, around line 56:
+const username = "your-github-username";  // <-- Replace with your GitHub username
 ```
 
 ### 3️⃣ (Optional) Add a Personal Access Token
-For private repositories and enhanced API limits, add a token:
+For private repositories and enhanced API limits, add a token in `index.html`:
 ```javascript
-const token = "your-personal-access-token";
+// In index.html, around line 57:
+const token = "your-personal-access-token";  // <-- Add your GitHub PAT here
 ```
 
 ### 4️⃣ Open in Browser
