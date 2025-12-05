@@ -200,7 +200,7 @@
           throw new Error("Invalid REST response");
         }
 
-        // Fetch PRs for each repository (limited to first 10 repos to avoid rate limiting)
+        // Fetch PRs for each repository (limited to first 30 repos to avoid rate limiting)
         const reposWithPRs = await Promise.all(
           repos.slice(0, 30).map(async (r) => {
             let pullRequests = { nodes: [], totalCount: 0 };
@@ -217,7 +217,7 @@
                     isDraft: pr.draft || false,
                     author: { login: pr.user?.login ?? 'unknown' },
                     createdAt: pr.created_at,
-                    mergeable: pr.mergeable_state === 'clean' ? 'MERGEABLE' : pr.mergeable_state === 'dirty' ? 'CONFLICTING' : 'UNKNOWN',
+                    mergeable: getMergeableState(pr.mergeable_state),
                     reviewDecision: null, // REST API doesn't provide this directly
                     url: pr.html_url,
                     reviews: { nodes: [] }
@@ -404,6 +404,18 @@
     // ===========================
     // PR Status Helpers
     // ===========================
+    function getMergeableState(state) {
+      switch (state) {
+        case 'clean':
+          return 'MERGEABLE';
+        case 'dirty':
+        case 'blocked':
+          return 'CONFLICTING';
+        default:
+          return 'UNKNOWN';
+      }
+    }
+
     function getPRStatusIcon(pr) {
       if (pr.isDraft) return "📝";
       if (pr.reviewDecision === "APPROVED") return "✅";
