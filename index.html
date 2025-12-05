@@ -37,6 +37,15 @@
     .issues-list.expanded {
       max-height: 1500px;
     }
+    /* Projects list expand / collapse animation */
+    .projects-list {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.5s ease;
+    }
+    .projects-list.expanded {
+      max-height: 1500px;
+    }
     /* PR badge hover effect */
     .pr-badge:hover {
       transform: scale(1.05);
@@ -44,6 +53,11 @@
     }
     /* Issues badge hover effect */
     .issues-badge:hover {
+      transform: scale(1.05);
+      transition: transform 0.2s ease;
+    }
+    /* Projects badge hover effect */
+    .projects-badge:hover {
       transform: scale(1.05);
       transition: transform 0.2s ease;
     }
@@ -159,6 +173,18 @@
                     }
                     totalCount
                   }
+                  projectsV2(first: 5) {
+                    nodes {
+                      title
+                      shortDescription
+                      url
+                      closed
+                      items {
+                        totalCount
+                      }
+                    }
+                    totalCount
+                  }
                 }
               }
             }
@@ -205,6 +231,18 @@
                       nodes {
                         login
                       }
+                    }
+                  }
+                  totalCount
+                }
+                projectsV2(first: 5) {
+                  nodes {
+                    title
+                    shortDescription
+                    url
+                    closed
+                    items {
+                      totalCount
                     }
                   }
                   totalCount
@@ -335,12 +373,13 @@
               url: r.html_url,
               isPinned: false,
               pullRequests,
-              issues
+              issues,
+              projectsV2: { nodes: [], totalCount: 0 } // Projects require GraphQL API with token
             };
           })
         );
 
-        // Add remaining repos without PR/Issues data
+        // Add remaining repos without PR/Issues/Projects data
         const remainingRepos = repos.slice(30).map(r => ({
           name: r.name,
           description: r.description,
@@ -350,7 +389,8 @@
           url: r.html_url,
           isPinned: false,
           pullRequests: { nodes: [], totalCount: 0 },
-          issues: { nodes: [], totalCount: 0 }
+          issues: { nodes: [], totalCount: 0 },
+          projectsV2: { nodes: [], totalCount: 0 }
         }));
 
         allRepos = [...reposWithData, ...remainingRepos];
@@ -402,19 +442,25 @@
         
         const issuesCount = repo.issues?.totalCount ?? 0;
         const issuesBadgeColor = issuesCount > 0 ? "bg-orange-600" : "bg-gray-600";
+        
+        const projectsCount = repo.projectsV2?.totalCount ?? 0;
+        const projectsBadgeColor = projectsCount > 0 ? "bg-purple-600" : "bg-gray-600";
 
         card.innerHTML = `
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center flex-wrap gap-2">
             <h2 class="text-xl font-semibold text-blue-300">
               <a href="${repo.url}" target="_blank" class="hover:underline">${repo.name}</a>
             </h2>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               ${repo.isPinned ? `<span class="text-xs text-yellow-400">📌 Pinned</span>` : ""}
               <span class="pr-badge text-xs px-2 py-1 rounded-full ${prBadgeColor} text-white cursor-pointer" title="Open Pull Requests">
                 🔀 ${prCount} PR${prCount !== 1 ? 's' : ''}
               </span>
               <span class="issues-badge text-xs px-2 py-1 rounded-full ${issuesBadgeColor} text-white cursor-pointer" title="Open Issues">
                 🐛 ${issuesCount} Issue${issuesCount !== 1 ? 's' : ''}
+              </span>
+              <span class="projects-badge text-xs px-2 py-1 rounded-full ${projectsBadgeColor} text-white cursor-pointer" title="Projects">
+                📊 ${projectsCount} Project${projectsCount !== 1 ? 's' : ''}
               </span>
             </div>
           </div>
@@ -426,6 +472,7 @@
           </div>
           <div class="pr-list mt-2"></div>
           <div class="issues-list mt-2"></div>
+          <div class="projects-list mt-2"></div>
           <div class="readme mt-2 text-gray-300 prose prose-invert max-w-none"></div>
         `;
 
@@ -447,9 +494,19 @@
           toggleIssuesList(repo, issuesListDiv);
         });
 
+        // Projects badge click handler
+        const projectsBadge = card.querySelector(".projects-badge");
+        const projectsListDiv = card.querySelector(".projects-list");
+        
+        projectsBadge.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleProjectsList(repo, projectsListDiv);
+        });
+
         card.addEventListener("click", async (e) => {
           if (!e.target.closest(".pr-badge") && !e.target.closest(".pr-list") && 
-              !e.target.closest(".issues-badge") && !e.target.closest(".issues-list")) {
+              !e.target.closest(".issues-badge") && !e.target.closest(".issues-list") &&
+              !e.target.closest(".projects-badge") && !e.target.closest(".projects-list")) {
             toggleReadme(repo, card.querySelector(".readme"));
           }
         });
@@ -641,6 +698,63 @@
       // Calculate luminance
       const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
       return luminance > 0.5 ? '#000000' : '#ffffff';
+    }
+
+    // ===========================
+    // Toggle Projects List View
+    // ===========================
+    function toggleProjectsList(repo, projectsListDiv) {
+      const isExpanded = projectsListDiv.classList.toggle("expanded");
+      
+      if (!isExpanded) {
+        projectsListDiv.innerHTML = "";
+        return;
+      }
+
+      const projects = repo.projectsV2?.nodes ?? [];
+      
+      if (projects.length === 0) {
+        projectsListDiv.innerHTML = `<p class="text-gray-500 text-sm italic p-2">No projects (requires token for GraphQL API)</p>`;
+        return;
+      }
+
+      projectsListDiv.innerHTML = `
+        <div class="border-t border-gray-700 mt-2 pt-2">
+          <h4 class="text-sm font-semibold text-gray-300 mb-2">📊 Projects</h4>
+          <ul class="space-y-2">
+            ${projects.map(project => {
+              const itemCount = project.items?.totalCount ?? 0;
+              const statusColor = project.closed ? "bg-gray-600" : "bg-purple-600";
+              const statusText = project.closed ? "Closed" : "Open";
+              
+              return `
+                <li class="text-sm border border-gray-700 rounded p-2 bg-gray-800">
+                  <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                      <a href="${project.url}" target="_blank" class="text-blue-400 hover:underline font-medium">
+                        ${escapeHtml(project.title)}
+                      </a>
+                      ${project.shortDescription ? `
+                        <div class="text-gray-500 text-xs mt-1">
+                          ${escapeHtml(project.shortDescription)}
+                        </div>
+                      ` : ""}
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded ${statusColor}" title="Project Status">
+                      ${statusText}
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    <span class="text-xs bg-gray-700 px-2 py-0.5 rounded">
+                      📋 ${itemCount} item${itemCount !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </li>
+              `;
+            }).join("")}
+          </ul>
+        </div>
+      `;
     }
 
     // ===========================
