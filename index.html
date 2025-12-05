@@ -28,8 +28,36 @@
     .pr-list.expanded {
       max-height: 1500px;
     }
+    /* Issues list expand / collapse animation */
+    .issues-list {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.5s ease;
+    }
+    .issues-list.expanded {
+      max-height: 1500px;
+    }
+    /* Projects list expand / collapse animation */
+    .projects-list {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.5s ease;
+    }
+    .projects-list.expanded {
+      max-height: 1500px;
+    }
     /* PR badge hover effect */
     .pr-badge:hover {
+      transform: scale(1.05);
+      transition: transform 0.2s ease;
+    }
+    /* Issues badge hover effect */
+    .issues-badge:hover {
+      transform: scale(1.05);
+      transition: transform 0.2s ease;
+    }
+    /* Projects badge hover effect */
+    .projects-badge:hover {
       transform: scale(1.05);
       transition: transform 0.2s ease;
     }
@@ -122,6 +150,41 @@
                     }
                     totalCount
                   }
+                  issues(first: 10, states: OPEN) {
+                    nodes {
+                      title
+                      number
+                      state
+                      author { login }
+                      createdAt
+                      updatedAt
+                      url
+                      labels(first: 5) {
+                        nodes {
+                          name
+                          color
+                        }
+                      }
+                      assignees(first: 3) {
+                        nodes {
+                          login
+                        }
+                      }
+                    }
+                    totalCount
+                  }
+                  projectsV2(first: 5) {
+                    nodes {
+                      title
+                      shortDescription
+                      url
+                      closed
+                      items {
+                        totalCount
+                      }
+                    }
+                    totalCount
+                  }
                 }
               }
             }
@@ -145,6 +208,41 @@
                         author { login }
                         state
                       }
+                    }
+                  }
+                  totalCount
+                }
+                issues(first: 10, states: OPEN) {
+                  nodes {
+                    title
+                    number
+                    state
+                    author { login }
+                    createdAt
+                    updatedAt
+                    url
+                    labels(first: 5) {
+                      nodes {
+                        name
+                        color
+                      }
+                    }
+                    assignees(first: 3) {
+                      nodes {
+                        login
+                      }
+                    }
+                  }
+                  totalCount
+                }
+                projectsV2(first: 5) {
+                  nodes {
+                    title
+                    shortDescription
+                    url
+                    closed
+                    items {
+                      totalCount
                     }
                   }
                   totalCount
@@ -200,10 +298,13 @@
           throw new Error("Invalid REST response");
         }
 
-        // Fetch PRs for each repository (limited to first 30 repos to avoid rate limiting)
-        const reposWithPRs = await Promise.all(
+        // Fetch PRs and Issues for each repository (limited to first 30 repos to avoid rate limiting)
+        const reposWithData = await Promise.all(
           repos.slice(0, 30).map(async (r) => {
             let pullRequests = { nodes: [], totalCount: 0 };
+            let issues = { nodes: [], totalCount: 0 };
+            
+            // Fetch PRs
             try {
               const prRes = await fetch(`https://api.github.com/repos/${username}/${r.name}/pulls?state=open&per_page=10`, { headers });
               if (prRes.ok) {
@@ -227,6 +328,44 @@
             } catch (err) {
               console.warn(`Failed to fetch PRs for ${r.name}:`, err);
             }
+            
+            // Fetch Issues
+            try {
+              const issuesRes = await fetch(`https://api.github.com/repos/${username}/${r.name}/issues?state=open&per_page=10`, { headers });
+              if (issuesRes.ok) {
+                const issuesData = await issuesRes.json();
+                // Filter out pull requests (GitHub API returns PRs as issues)
+                const actualIssues = issuesData.filter(issue => !issue.pull_request);
+                // Note: open_issues_count includes PRs, so we estimate using filtered count
+                // The totalCount may be lower than actual if there are more than 10 issues
+                issues = {
+                  totalCount: r.open_issues_count - pullRequests.totalCount,
+                  nodes: actualIssues.map(issue => ({
+                    title: issue.title,
+                    number: issue.number,
+                    state: issue.state.toUpperCase(),
+                    author: { login: issue.user?.login ?? 'unknown' },
+                    createdAt: issue.created_at,
+                    updatedAt: issue.updated_at,
+                    url: issue.html_url,
+                    labels: {
+                      nodes: (issue.labels || []).map(label => ({
+                        name: label.name,
+                        color: label.color
+                      }))
+                    },
+                    assignees: {
+                      nodes: (issue.assignees || []).map(assignee => ({
+                        login: assignee.login
+                      }))
+                    }
+                  }))
+                };
+              }
+            } catch (err) {
+              console.warn(`Failed to fetch issues for ${r.name}:`, err);
+            }
+            
             return {
               name: r.name,
               description: r.description,
@@ -235,12 +374,14 @@
               primaryLanguage: { name: r.language },
               url: r.html_url,
               isPinned: false,
-              pullRequests
+              pullRequests,
+              issues,
+              projectsV2: { nodes: [], totalCount: 0 } // Projects require GraphQL API with token
             };
           })
         );
 
-        // Add remaining repos without PR data
+        // Add remaining repos without PR/Issues/Projects data
         const remainingRepos = repos.slice(30).map(r => ({
           name: r.name,
           description: r.description,
@@ -249,10 +390,12 @@
           primaryLanguage: { name: r.language },
           url: r.html_url,
           isPinned: false,
-          pullRequests: { nodes: [], totalCount: 0 }
+          pullRequests: { nodes: [], totalCount: 0 },
+          issues: { nodes: [], totalCount: 0 },
+          projectsV2: { nodes: [], totalCount: 0 }
         }));
 
-        allRepos = [...reposWithPRs, ...remainingRepos];
+        allRepos = [...reposWithData, ...remainingRepos];
 
         console.log(`✅ Loaded ${allRepos.length} repos (REST)`);
         renderRepos();
@@ -298,16 +441,28 @@
 
         const prCount = repo.pullRequests?.totalCount ?? 0;
         const prBadgeColor = prCount > 0 ? "bg-green-600" : "bg-gray-600";
+        
+        const issuesCount = repo.issues?.totalCount ?? 0;
+        const issuesBadgeColor = issuesCount > 0 ? "bg-orange-600" : "bg-gray-600";
+        
+        const projectsCount = repo.projectsV2?.totalCount ?? 0;
+        const projectsBadgeColor = projectsCount > 0 ? "bg-purple-600" : "bg-gray-600";
 
         card.innerHTML = `
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center gap-2">
             <h2 class="text-xl font-semibold text-blue-300">
               <a href="${repo.url}" target="_blank" class="hover:underline">${repo.name}</a>
             </h2>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               ${repo.isPinned ? `<span class="text-xs text-yellow-400">📌 Pinned</span>` : ""}
-              <span class="pr-badge text-xs px-2 py-1 rounded-full ${prBadgeColor} text-white cursor-pointer" title="Open Pull Requests">
+              <span class="pr-badge text-xs px-2 py-1 rounded-full ${prBadgeColor} text-white cursor-pointer" data-interactive title="Open Pull Requests">
                 🔀 ${prCount} PR${prCount !== 1 ? 's' : ''}
+              </span>
+              <span class="issues-badge text-xs px-2 py-1 rounded-full ${issuesBadgeColor} text-white cursor-pointer" data-interactive title="Open Issues">
+                🐛 ${issuesCount} Issue${issuesCount !== 1 ? 's' : ''}
+              </span>
+              <span class="projects-badge text-xs px-2 py-1 rounded-full ${projectsBadgeColor} text-white cursor-pointer" data-interactive title="Projects">
+                📊 ${projectsCount} Project${projectsCount !== 1 ? 's' : ''}
               </span>
             </div>
           </div>
@@ -317,7 +472,9 @@
             <span>🕒 ${new Date(repo.updatedAt).toLocaleDateString()}</span>
             <span>${repo.primaryLanguage?.name ?? ""}</span>
           </div>
-          <div class="pr-list mt-2"></div>
+          <div class="pr-list mt-2" data-interactive></div>
+          <div class="issues-list mt-2" data-interactive></div>
+          <div class="projects-list mt-2" data-interactive></div>
           <div class="readme mt-2 text-gray-300 prose prose-invert max-w-none"></div>
         `;
 
@@ -330,8 +487,27 @@
           togglePRList(repo, prListDiv);
         });
 
+        // Issues badge click handler
+        const issuesBadge = card.querySelector(".issues-badge");
+        const issuesListDiv = card.querySelector(".issues-list");
+        
+        issuesBadge.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleIssuesList(repo, issuesListDiv);
+        });
+
+        // Projects badge click handler
+        const projectsBadge = card.querySelector(".projects-badge");
+        const projectsListDiv = card.querySelector(".projects-list");
+        
+        projectsBadge.addEventListener("click", (e) => {
+          e.stopPropagation();
+          toggleProjectsList(repo, projectsListDiv);
+        });
+
         card.addEventListener("click", async (e) => {
-          if (!e.target.closest(".pr-badge") && !e.target.closest(".pr-list")) {
+          // Only toggle README if clicking on non-interactive areas
+          if (!e.target.closest("[data-interactive]")) {
             toggleReadme(repo, card.querySelector(".readme"));
           }
         });
@@ -446,6 +622,140 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    // ===========================
+    // Toggle Issues List View
+    // ===========================
+    function toggleIssuesList(repo, issuesListDiv) {
+      const isExpanded = issuesListDiv.classList.toggle("expanded");
+      
+      if (!isExpanded) {
+        issuesListDiv.innerHTML = "";
+        return;
+      }
+
+      const issues = repo.issues?.nodes ?? [];
+      
+      if (issues.length === 0) {
+        issuesListDiv.innerHTML = `<p class="text-gray-500 text-sm italic p-2">No open issues</p>`;
+        return;
+      }
+
+      issuesListDiv.innerHTML = `
+        <div class="border-t border-gray-700 mt-2 pt-2">
+          <h4 class="text-sm font-semibold text-gray-300 mb-2">🐛 Open Issues</h4>
+          <ul class="space-y-2">
+            ${issues.map(issue => {
+              const labels = issue.labels?.nodes ?? [];
+              const assignees = issue.assignees?.nodes?.map(a => a.login).filter(Boolean).join(", ") || "Unassigned";
+              const isStale = isIssueStale(issue.updatedAt);
+              
+              return `
+                <li class="text-sm border border-gray-700 rounded p-2 bg-gray-800">
+                  <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                      <a href="${issue.url}" target="_blank" class="text-blue-400 hover:underline font-medium">
+                        #${issue.number} ${escapeHtml(issue.title)}
+                      </a>
+                      <div class="text-gray-500 text-xs mt-1">
+                        by ${escapeHtml(issue.author?.login ?? 'unknown')} • ${new Date(issue.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    ${isStale ? `<span class="text-xs px-2 py-1 rounded bg-yellow-600" title="No activity for 30+ days">⚠️ Stale</span>` : ""}
+                  </div>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    ${labels.map(label => `
+                      <span class="text-xs px-2 py-0.5 rounded" style="background-color: #${label.color}; color: ${getContrastColor(label.color)}">
+                        ${escapeHtml(label.name)}
+                      </span>
+                    `).join("")}
+                  </div>
+                  <div class="text-xs text-gray-500 mt-1">
+                    👤 Assignees: ${assignees}
+                  </div>
+                </li>
+              `;
+            }).join("")}
+          </ul>
+        </div>
+      `;
+    }
+
+    // ===========================
+    // Issues Helper Functions
+    // ===========================
+    function isIssueStale(updatedAt) {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return new Date(updatedAt) < thirtyDaysAgo;
+    }
+
+    function getContrastColor(hexColor) {
+      // Convert hex to RGB
+      const r = parseInt(hexColor.substring(0, 2), 16);
+      const g = parseInt(hexColor.substring(2, 4), 16);
+      const b = parseInt(hexColor.substring(4, 6), 16);
+      // Calculate luminance
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return luminance > 0.5 ? '#000000' : '#ffffff';
+    }
+
+    // ===========================
+    // Toggle Projects List View
+    // ===========================
+    function toggleProjectsList(repo, projectsListDiv) {
+      const isExpanded = projectsListDiv.classList.toggle("expanded");
+      
+      if (!isExpanded) {
+        projectsListDiv.innerHTML = "";
+        return;
+      }
+
+      const projects = repo.projectsV2?.nodes ?? [];
+      
+      if (projects.length === 0) {
+        projectsListDiv.innerHTML = `<p class="text-gray-500 text-sm italic p-2">No projects (requires token for GraphQL API)</p>`;
+        return;
+      }
+
+      projectsListDiv.innerHTML = `
+        <div class="border-t border-gray-700 mt-2 pt-2">
+          <h4 class="text-sm font-semibold text-gray-300 mb-2">📊 Projects</h4>
+          <ul class="space-y-2">
+            ${projects.map(project => {
+              const itemCount = project.items?.totalCount ?? 0;
+              const statusColor = project.closed ? "bg-gray-600" : "bg-purple-600";
+              const statusText = project.closed ? "Closed" : "Open";
+              
+              return `
+                <li class="text-sm border border-gray-700 rounded p-2 bg-gray-800">
+                  <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                      <a href="${project.url}" target="_blank" class="text-blue-400 hover:underline font-medium">
+                        ${escapeHtml(project.title)}
+                      </a>
+                      ${project.shortDescription ? `
+                        <div class="text-gray-500 text-xs mt-1">
+                          ${escapeHtml(project.shortDescription)}
+                        </div>
+                      ` : ""}
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded ${statusColor}" title="Project Status">
+                      ${statusText}
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    <span class="text-xs bg-gray-700 px-2 py-0.5 rounded">
+                      📋 ${itemCount} item${itemCount !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </li>
+              `;
+            }).join("")}
+          </ul>
+        </div>
+      `;
     }
 
     // ===========================

@@ -14,7 +14,10 @@ Built with **vanilla JavaScript**, **TailwindCSS**, and **GitHub’s GraphQL API
 - 📖 Displays each repo’s **README** inline (rendered from Markdown)  
 - 🧭 **Search, sort, and filter** your projects  
 - 📊 Sort by stars, last update, name, or pin status  
-- 🧱 Toggle between **grid and list** views  
+- 🧱 Toggle between **grid and list** views
+- 🔀 **Pull Requests** - View open PRs with draft status, review decisions, and merge state
+- 🐛 **Issues** - Track open issues with labels, assignees, and stale indicators (30+ days)
+- 📊 **Projects** - Display GitHub Projects with item counts and open/closed status
 - ⚡ No frameworks or build steps — pure browser JavaScript  
 
 ---
@@ -48,12 +51,13 @@ Simply open `index.html` in your browser — no build step required!
 
 ## 🗺️ Roadmap
 
-We have exciting plans to enhance this dashboard with additional features including:
+Current implementation status:
 
-- 🔀 **Pull Requests** - View open PRs across all repositories
-- 🐛 **Issues** - Track open issues and their status
-- 📊 **Projects** - Display GitHub Projects and progress
-- 📈 **Advanced Reporting** - Analytics and activity timelines
+- ✅ **Phase 1: Pull Requests** - View open PRs with draft status, review decisions, and merge state
+- ✅ **Phase 2: Issues** - Track open issues with labels, assignees, and stale indicators
+- ✅ **Phase 3: Projects** - Display GitHub Projects with item counts
+- 🚧 **Phase 4: UI/UX Improvements** - Dashboard tabs, enhanced cards, summary header
+- 📋 **Phase 5: Advanced Reporting** - Analytics and activity timelines
 
 See [ROADMAP.md](ROADMAP.md) for the full enhancement plan and implementation details.
 
