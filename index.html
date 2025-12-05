@@ -19,6 +19,20 @@
       max-height: 2000px;
       padding-top: 1rem;
     }
+    /* PR list expand / collapse animation */
+    .pr-list {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.5s ease;
+    }
+    .pr-list.expanded {
+      max-height: 1500px;
+    }
+    /* PR badge hover effect */
+    .pr-badge:hover {
+      transform: scale(1.05);
+      transition: transform 0.2s ease;
+    }
   </style>
 </head>
 
@@ -88,6 +102,26 @@
                 ... on Repository {
                   name description stargazerCount updatedAt primaryLanguage { name }
                   url isPrivate
+                  pullRequests(first: 10, states: OPEN) {
+                    nodes {
+                      title
+                      number
+                      state
+                      isDraft
+                      author { login }
+                      createdAt
+                      mergeable
+                      reviewDecision
+                      url
+                      reviews(first: 5) {
+                        nodes {
+                          author { login }
+                          state
+                        }
+                      }
+                    }
+                    totalCount
+                  }
                 }
               }
             }
@@ -95,6 +129,26 @@
               nodes {
                 name description stargazerCount updatedAt primaryLanguage { name }
                 url isPrivate
+                pullRequests(first: 10, states: OPEN) {
+                  nodes {
+                    title
+                    number
+                    state
+                    isDraft
+                    author { login }
+                    createdAt
+                    mergeable
+                    reviewDecision
+                    url
+                    reviews(first: 5) {
+                      nodes {
+                        author { login }
+                        state
+                      }
+                    }
+                  }
+                  totalCount
+                }
               }
             }
           }
@@ -146,15 +200,59 @@
           throw new Error("Invalid REST response");
         }
 
-        allRepos = repos.map(r => ({
+        // Fetch PRs for each repository (limited to first 30 repos to avoid rate limiting)
+        const reposWithPRs = await Promise.all(
+          repos.slice(0, 30).map(async (r) => {
+            let pullRequests = { nodes: [], totalCount: 0 };
+            try {
+              const prRes = await fetch(`https://api.github.com/repos/${username}/${r.name}/pulls?state=open&per_page=10`, { headers });
+              if (prRes.ok) {
+                const prs = await prRes.json();
+                pullRequests = {
+                  totalCount: prs.length,
+                  nodes: prs.map(pr => ({
+                    title: pr.title,
+                    number: pr.number,
+                    state: pr.state.toUpperCase(),
+                    isDraft: pr.draft || false,
+                    author: { login: pr.user?.login ?? 'unknown' },
+                    createdAt: pr.created_at,
+                    mergeable: getMergeableState(pr.mergeable_state),
+                    reviewDecision: null, // REST API doesn't provide this directly
+                    url: pr.html_url,
+                    reviews: { nodes: [] }
+                  }))
+                };
+              }
+            } catch (err) {
+              console.warn(`Failed to fetch PRs for ${r.name}:`, err);
+            }
+            return {
+              name: r.name,
+              description: r.description,
+              stargazerCount: r.stargazers_count,
+              updatedAt: r.updated_at,
+              primaryLanguage: { name: r.language },
+              url: r.html_url,
+              isPinned: false,
+              pullRequests
+            };
+          })
+        );
+
+        // Add remaining repos without PR data
+        const remainingRepos = repos.slice(30).map(r => ({
           name: r.name,
           description: r.description,
           stargazerCount: r.stargazers_count,
           updatedAt: r.updated_at,
           primaryLanguage: { name: r.language },
           url: r.html_url,
-          isPinned: false
+          isPinned: false,
+          pullRequests: { nodes: [], totalCount: 0 }
         }));
+
+        allRepos = [...reposWithPRs, ...remainingRepos];
 
         console.log(`✅ Loaded ${allRepos.length} repos (REST)`);
         renderRepos();
@@ -198,12 +296,20 @@
         const card = document.createElement("div");
         card.className = "border border-gray-700 rounded-xl p-4 bg-gray-900 hover:bg-gray-800 transition";
 
+        const prCount = repo.pullRequests?.totalCount ?? 0;
+        const prBadgeColor = prCount > 0 ? "bg-green-600" : "bg-gray-600";
+
         card.innerHTML = `
           <div class="flex justify-between items-center">
             <h2 class="text-xl font-semibold text-blue-300">
               <a href="${repo.url}" target="_blank" class="hover:underline">${repo.name}</a>
             </h2>
-            ${repo.isPinned ? `<span class="text-xs text-yellow-400">📌 Pinned</span>` : ""}
+            <div class="flex items-center gap-2">
+              ${repo.isPinned ? `<span class="text-xs text-yellow-400">📌 Pinned</span>` : ""}
+              <span class="pr-badge text-xs px-2 py-1 rounded-full ${prBadgeColor} text-white cursor-pointer" title="Open Pull Requests">
+                🔀 ${prCount} PR${prCount !== 1 ? 's' : ''}
+              </span>
+            </div>
           </div>
           <p class="text-gray-400 text-sm mt-1">${repo.description ?? "No description"}</p>
           <div class="flex space-x-4 text-xs mt-2 text-gray-500">
@@ -211,12 +317,135 @@
             <span>🕒 ${new Date(repo.updatedAt).toLocaleDateString()}</span>
             <span>${repo.primaryLanguage?.name ?? ""}</span>
           </div>
+          <div class="pr-list mt-2"></div>
           <div class="readme mt-2 text-gray-300 prose prose-invert max-w-none"></div>
         `;
 
-        card.addEventListener("click", async () => toggleReadme(repo, card.querySelector(".readme")));
+        // PR badge click handler
+        const prBadge = card.querySelector(".pr-badge");
+        const prListDiv = card.querySelector(".pr-list");
+        
+        prBadge.addEventListener("click", (e) => {
+          e.stopPropagation();
+          togglePRList(repo, prListDiv);
+        });
+
+        card.addEventListener("click", async (e) => {
+          if (!e.target.closest(".pr-badge") && !e.target.closest(".pr-list")) {
+            toggleReadme(repo, card.querySelector(".readme"));
+          }
+        });
         repoList.appendChild(card);
       });
+    }
+
+    // ===========================
+    // Toggle PR List View
+    // ===========================
+    function togglePRList(repo, prListDiv) {
+      const isExpanded = prListDiv.classList.toggle("expanded");
+      
+      if (!isExpanded) {
+        prListDiv.innerHTML = "";
+        return;
+      }
+
+      const prs = repo.pullRequests?.nodes ?? [];
+      
+      if (prs.length === 0) {
+        prListDiv.innerHTML = `<p class="text-gray-500 text-sm italic p-2">No open pull requests</p>`;
+        return;
+      }
+
+      prListDiv.innerHTML = `
+        <div class="border-t border-gray-700 mt-2 pt-2">
+          <h4 class="text-sm font-semibold text-gray-300 mb-2">📋 Open Pull Requests</h4>
+          <ul class="space-y-2">
+            ${prs.map(pr => {
+              const statusIcon = getPRStatusIcon(pr);
+              const statusColor = getPRStatusColor(pr);
+              const reviewers = pr.reviews?.nodes?.map(r => r.author?.login).filter(Boolean).join(", ") || "No reviewers";
+              
+              return `
+                <li class="text-sm border border-gray-700 rounded p-2 bg-gray-800">
+                  <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                      <a href="${pr.url}" target="_blank" class="text-blue-400 hover:underline font-medium">
+                        #${pr.number} ${escapeHtml(pr.title)}
+                      </a>
+                      <div class="text-gray-500 text-xs mt-1">
+                        by ${escapeHtml(pr.author?.login ?? 'unknown')} • ${new Date(pr.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded ${statusColor}" title="${getStatusTitle(pr)}">
+                      ${statusIcon}
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    ${pr.isDraft ? `<span class="text-xs bg-gray-600 px-2 py-0.5 rounded">📝 Draft</span>` : ""}
+                    ${pr.reviewDecision === "APPROVED" ? `<span class="text-xs bg-green-700 px-2 py-0.5 rounded">✅ Approved</span>` : ""}
+                    ${pr.reviewDecision === "CHANGES_REQUESTED" ? `<span class="text-xs bg-yellow-700 px-2 py-0.5 rounded">⚠️ Changes Requested</span>` : ""}
+                    ${pr.mergeable === "MERGEABLE" ? `<span class="text-xs bg-green-600 px-2 py-0.5 rounded">🟢 Ready to merge</span>` : ""}
+                    ${pr.mergeable === "CONFLICTING" ? `<span class="text-xs bg-red-600 px-2 py-0.5 rounded">🔴 Conflicts</span>` : ""}
+                  </div>
+                  ${pr.reviews?.nodes?.length > 0 ? `
+                    <div class="text-xs text-gray-500 mt-1">
+                      👥 Reviewers: ${reviewers}
+                    </div>
+                  ` : ""}
+                </li>
+              `;
+            }).join("")}
+          </ul>
+        </div>
+      `;
+    }
+
+    // ===========================
+    // PR Status Helpers
+    // ===========================
+    function getMergeableState(state) {
+      switch (state) {
+        case 'clean':
+          return 'MERGEABLE';
+        case 'dirty':
+        case 'blocked':
+          return 'CONFLICTING';
+        default:
+          return 'UNKNOWN';
+      }
+    }
+
+    function getPRStatusIcon(pr) {
+      if (pr.isDraft) return "📝";
+      if (pr.reviewDecision === "APPROVED") return "✅";
+      if (pr.reviewDecision === "CHANGES_REQUESTED") return "⚠️";
+      if (pr.mergeable === "MERGEABLE") return "🟢";
+      if (pr.mergeable === "CONFLICTING") return "🔴";
+      return "🔀";
+    }
+
+    function getPRStatusColor(pr) {
+      if (pr.isDraft) return "bg-gray-600";
+      if (pr.reviewDecision === "APPROVED") return "bg-green-600";
+      if (pr.reviewDecision === "CHANGES_REQUESTED") return "bg-yellow-600";
+      if (pr.mergeable === "CONFLICTING") return "bg-red-600";
+      return "bg-blue-600";
+    }
+
+    function getStatusTitle(pr) {
+      if (pr.isDraft) return "Draft PR";
+      if (pr.reviewDecision === "APPROVED") return "Approved";
+      if (pr.reviewDecision === "CHANGES_REQUESTED") return "Changes Requested";
+      if (pr.mergeable === "MERGEABLE") return "Ready to Merge";
+      if (pr.mergeable === "CONFLICTING") return "Has Conflicts";
+      return "Open";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     }
 
     // ===========================
