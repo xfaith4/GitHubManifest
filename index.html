@@ -336,8 +336,10 @@
                 const issuesData = await issuesRes.json();
                 // Filter out pull requests (GitHub API returns PRs as issues)
                 const actualIssues = issuesData.filter(issue => !issue.pull_request);
+                // Note: open_issues_count includes PRs, so we estimate using filtered count
+                // The totalCount may be lower than actual if there are more than 10 issues
                 issues = {
-                  totalCount: actualIssues.length,
+                  totalCount: r.open_issues_count - pullRequests.totalCount,
                   nodes: actualIssues.map(issue => ({
                     title: issue.title,
                     number: issue.number,
@@ -447,19 +449,19 @@
         const projectsBadgeColor = projectsCount > 0 ? "bg-purple-600" : "bg-gray-600";
 
         card.innerHTML = `
-          <div class="flex justify-between items-center flex-wrap gap-2">
+          <div class="flex justify-between items-center gap-2">
             <h2 class="text-xl font-semibold text-blue-300">
               <a href="${repo.url}" target="_blank" class="hover:underline">${repo.name}</a>
             </h2>
             <div class="flex items-center gap-2 flex-wrap">
               ${repo.isPinned ? `<span class="text-xs text-yellow-400">📌 Pinned</span>` : ""}
-              <span class="pr-badge text-xs px-2 py-1 rounded-full ${prBadgeColor} text-white cursor-pointer" title="Open Pull Requests">
+              <span class="pr-badge text-xs px-2 py-1 rounded-full ${prBadgeColor} text-white cursor-pointer" data-interactive title="Open Pull Requests">
                 🔀 ${prCount} PR${prCount !== 1 ? 's' : ''}
               </span>
-              <span class="issues-badge text-xs px-2 py-1 rounded-full ${issuesBadgeColor} text-white cursor-pointer" title="Open Issues">
+              <span class="issues-badge text-xs px-2 py-1 rounded-full ${issuesBadgeColor} text-white cursor-pointer" data-interactive title="Open Issues">
                 🐛 ${issuesCount} Issue${issuesCount !== 1 ? 's' : ''}
               </span>
-              <span class="projects-badge text-xs px-2 py-1 rounded-full ${projectsBadgeColor} text-white cursor-pointer" title="Projects">
+              <span class="projects-badge text-xs px-2 py-1 rounded-full ${projectsBadgeColor} text-white cursor-pointer" data-interactive title="Projects">
                 📊 ${projectsCount} Project${projectsCount !== 1 ? 's' : ''}
               </span>
             </div>
@@ -470,9 +472,9 @@
             <span>🕒 ${new Date(repo.updatedAt).toLocaleDateString()}</span>
             <span>${repo.primaryLanguage?.name ?? ""}</span>
           </div>
-          <div class="pr-list mt-2"></div>
-          <div class="issues-list mt-2"></div>
-          <div class="projects-list mt-2"></div>
+          <div class="pr-list mt-2" data-interactive></div>
+          <div class="issues-list mt-2" data-interactive></div>
+          <div class="projects-list mt-2" data-interactive></div>
           <div class="readme mt-2 text-gray-300 prose prose-invert max-w-none"></div>
         `;
 
@@ -504,9 +506,8 @@
         });
 
         card.addEventListener("click", async (e) => {
-          if (!e.target.closest(".pr-badge") && !e.target.closest(".pr-list") && 
-              !e.target.closest(".issues-badge") && !e.target.closest(".issues-list") &&
-              !e.target.closest(".projects-badge") && !e.target.closest(".projects-list")) {
+          // Only toggle README if clicking on non-interactive areas
+          if (!e.target.closest("[data-interactive]")) {
             toggleReadme(repo, card.querySelector(".readme"));
           }
         });
@@ -692,9 +693,9 @@
 
     function getContrastColor(hexColor) {
       // Convert hex to RGB
-      const r = parseInt(hexColor.substr(0, 2), 16);
-      const g = parseInt(hexColor.substr(2, 2), 16);
-      const b = parseInt(hexColor.substr(4, 2), 16);
+      const r = parseInt(hexColor.substring(0, 2), 16);
+      const g = parseInt(hexColor.substring(2, 4), 16);
+      const b = parseInt(hexColor.substring(4, 6), 16);
       // Calculate luminance
       const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
       return luminance > 0.5 ? '#000000' : '#ffffff';
