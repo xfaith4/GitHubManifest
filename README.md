@@ -25,3 +25,40 @@ Built with **vanilla JavaScript**, **TailwindCSS**, and **GitHub’s GraphQL API
 ```bash
 git clone https://github.com/xfaith4/github-manifest.git
 cd github-manifest
+```
+
+### 2️⃣ Configure
+Open `index.html` in a text editor and find the configuration section near line 56. Set your GitHub username:
+```javascript
+// In index.html, around line 56:
+const username = "your-github-username";  // <-- Replace with your GitHub username
+```
+
+### 3️⃣ (Optional) Add a Personal Access Token
+For private repositories and enhanced API limits, add a token in `index.html`:
+```javascript
+// In index.html, around line 57:
+const token = "your-personal-access-token";  // <-- Add your GitHub PAT here
+```
+
+### 4️⃣ Open in Browser
+Simply open `index.html` in your browser — no build step required!
+
+---
+
+## 🗺️ Roadmap
+
+We have exciting plans to enhance this dashboard with additional features including:
+
+- 🔀 **Pull Requests** - View open PRs across all repositories
+- 🐛 **Issues** - Track open issues and their status
+- 📊 **Projects** - Display GitHub Projects and progress
+- 📈 **Advanced Reporting** - Analytics and activity timelines
+
+See [ROADMAP.md](ROADMAP.md) for the full enhancement plan and implementation details.
+
+---
+
+## 📄 License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
