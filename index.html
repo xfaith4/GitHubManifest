@@ -110,7 +110,6 @@
       </div>
       <div class="flex-1 flex justify-end">
         <button id="theme-toggle" class="px-3 py-2 bg-gray-800 border border-gray-700 rounded hover:bg-gray-700 text-sm" title="Toggle Dark/Light Theme">
-          🌙 Dark
         </button>
       </div>
     </div>
@@ -671,10 +670,10 @@
               🍴 ${forksCount}
             </span>
             <span class="pr-badge px-2 py-1 rounded-full ${prBadgeColor} text-white cursor-pointer" data-interactive title="Open Pull Requests">
-              🔀 ${prCount} PR${prCount !== 1 ? 's' : ''}
+              🔀 ${prCount}
             </span>
             <span class="issues-badge px-2 py-1 rounded-full ${issuesBadgeColor} text-white cursor-pointer" data-interactive title="Open Issues">
-              🐛 ${issuesCount} Issue${issuesCount !== 1 ? 's' : ''}
+              🐛 ${issuesCount}
             </span>
             <span class="projects-badge px-2 py-1 rounded-full ${projectsBadgeColor} text-white cursor-pointer" data-interactive title="Projects">
               📊 ${projectsCount}
@@ -1026,10 +1025,13 @@
       });
 
       if (allProjects.length === 0) {
+        const noTokenMessage = !token ? 
+          '<p class="text-sm mt-2">Projects require a GitHub token to access via the GraphQL API.</p>' :
+          '<p class="text-sm mt-2">No projects are associated with your repositories.</p>';
         projectsListTab.innerHTML = `
           <div class="text-center text-gray-500 py-8">
             <p class="text-lg">📊 No projects found</p>
-            <p class="text-sm mt-2">Projects require a GitHub token to access via the GraphQL API.</p>
+            ${noTokenMessage}
           </div>
         `;
         return;
