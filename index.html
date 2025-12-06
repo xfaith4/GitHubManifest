@@ -61,18 +61,102 @@
       transform: scale(1.05);
       transition: transform 0.2s ease;
     }
+    /* Tab styles */
+    .tab-btn {
+      transition: all 0.2s ease;
+    }
+    .tab-btn.active {
+      border-bottom: 2px solid #3b82f6;
+      color: #3b82f6;
+    }
+    /* Light theme styles */
+    .light-theme {
+      --bg-primary: #f9fafb;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f3f4f6;
+      --text-primary: #111827;
+      --text-secondary: #4b5563;
+      --border-color: #e5e7eb;
+    }
+    body.light-theme {
+      background-color: var(--bg-primary) !important;
+      color: var(--text-primary) !important;
+    }
+    body.light-theme .bg-gray-950 { background-color: var(--bg-primary) !important; }
+    body.light-theme .bg-gray-900 { background-color: var(--bg-secondary) !important; }
+    body.light-theme .bg-gray-800 { background-color: var(--bg-tertiary) !important; }
+    body.light-theme .text-gray-200 { color: var(--text-primary) !important; }
+    body.light-theme .text-gray-300 { color: var(--text-primary) !important; }
+    body.light-theme .text-gray-400 { color: var(--text-secondary) !important; }
+    body.light-theme .text-gray-500 { color: var(--text-secondary) !important; }
+    body.light-theme .border-gray-700 { border-color: var(--border-color) !important; }
+    body.light-theme .hover\:bg-gray-700:hover { background-color: #e5e7eb !important; }
+    body.light-theme .hover\:bg-gray-800:hover { background-color: #e5e7eb !important; }
+    /* Ensure hidden class works without Tailwind */
+    .hidden {
+      display: none !important;
+    }
   </style>
 </head>
 
 <body class="bg-gray-950 text-gray-200 min-h-screen font-sans">
 
   <header class="p-6 text-center border-b border-gray-700">
-    <h1 class="text-3xl font-bold text-blue-400">Ben’s GitHub Repository Manifest</h1>
-    <p class="text-gray-400">Dynamic catalog of all repositories with expandable READMEs</p>
+    <div class="flex justify-between items-center max-w-5xl mx-auto">
+      <div class="flex-1"></div>
+      <div class="text-center flex-1">
+        <h1 class="text-3xl font-bold text-blue-400">Ben's GitHub Repository Manifest</h1>
+        <p class="text-gray-400">Dynamic catalog of all repositories with expandable READMEs</p>
+      </div>
+      <div class="flex-1 flex justify-end">
+        <button id="theme-toggle" class="px-3 py-2 bg-gray-800 border border-gray-700 rounded hover:bg-gray-700 text-sm" title="Toggle Dark/Light Theme">
+        </button>
+      </div>
+    </div>
   </header>
 
+  <!-- Dashboard Summary Header -->
+  <section id="summary-header" class="max-w-5xl mx-auto p-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 text-center">
+        <div class="text-3xl font-bold text-blue-400" id="total-repos">0</div>
+        <div class="text-sm text-gray-400">📁 Repositories</div>
+      </div>
+      <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 text-center">
+        <div class="text-3xl font-bold text-green-400" id="total-prs">0</div>
+        <div class="text-sm text-gray-400">🔀 Open PRs</div>
+      </div>
+      <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 text-center">
+        <div class="text-3xl font-bold text-orange-400" id="total-issues">0</div>
+        <div class="text-sm text-gray-400">🐛 Open Issues</div>
+      </div>
+      <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 text-center">
+        <div class="text-3xl font-bold text-purple-400" id="total-projects">0</div>
+        <div class="text-sm text-gray-400">📊 Active Projects</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Navigation Tabs -->
+  <nav id="nav-tabs" class="max-w-5xl mx-auto px-4">
+    <div class="flex border-b border-gray-700">
+      <button class="tab-btn active px-4 py-3 text-sm font-medium hover:text-blue-400" data-tab="repositories">
+        📁 Repositories
+      </button>
+      <button class="tab-btn px-4 py-3 text-sm font-medium hover:text-blue-400" data-tab="pull-requests">
+        🔀 Pull Requests
+      </button>
+      <button class="tab-btn px-4 py-3 text-sm font-medium hover:text-blue-400" data-tab="issues">
+        🐛 Issues
+      </button>
+      <button class="tab-btn px-4 py-3 text-sm font-medium hover:text-blue-400" data-tab="projects">
+        📊 Projects
+      </button>
+    </div>
+  </nav>
+
   <!-- Controls -->
-  <div class="max-w-5xl mx-auto p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+  <div id="controls-section" class="max-w-5xl mx-auto p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div class="flex gap-2">
       <input id="search" type="text" placeholder="Search repositories..."
              class="w-72 p-2 rounded bg-gray-800 border border-gray-700 text-gray-200 focus:outline-none focus:ring focus:ring-blue-500">
@@ -88,8 +172,11 @@
     </button>
   </div>
 
-  <!-- Repo Container -->
-  <main id="repo-list" class="max-w-5xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4"></main>
+  <!-- Tab Content Areas -->
+  <main id="repo-list" class="tab-content max-w-5xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4" data-tab="repositories"></main>
+  <section id="pr-list-tab" class="tab-content hidden max-w-5xl mx-auto p-4" data-tab="pull-requests"></section>
+  <section id="issues-list-tab" class="tab-content hidden max-w-5xl mx-auto p-4" data-tab="issues"></section>
+  <section id="projects-list-tab" class="tab-content hidden max-w-5xl mx-auto p-4" data-tab="projects"></section>
 
   <script>
     // ===========================
@@ -107,9 +194,119 @@
     const searchBox = document.getElementById("search");
     const sortSelect = document.getElementById("sort");
     const toggleViewBtn = document.getElementById("toggle-view");
+    const themeToggleBtn = document.getElementById("theme-toggle");
+    const prListTab = document.getElementById("pr-list-tab");
+    const issuesListTab = document.getElementById("issues-list-tab");
+    const projectsListTab = document.getElementById("projects-list-tab");
+    const controlsSection = document.getElementById("controls-section");
 
     let allRepos = [];
     let gridView = true;
+    let currentTab = "repositories";
+
+    // ===========================
+    // Theme Management
+    // ===========================
+    function initTheme() {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'light') {
+        document.body.classList.add('light-theme');
+        themeToggleBtn.textContent = '☀️ Light';
+      } else {
+        document.body.classList.remove('light-theme');
+        themeToggleBtn.textContent = '🌙 Dark';
+      }
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle('light-theme');
+      const isLight = document.body.classList.contains('light-theme');
+      localStorage.setItem('theme', isLight ? 'light' : 'dark');
+      themeToggleBtn.textContent = isLight ? '☀️ Light' : '🌙 Dark';
+    }
+
+    themeToggleBtn.addEventListener('click', toggleTheme);
+    initTheme();
+
+    // ===========================
+    // Tab Navigation
+    // ===========================
+    function initTabs() {
+      const tabButtons = document.querySelectorAll('.tab-btn');
+      tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tab = btn.dataset.tab;
+          switchTab(tab);
+        });
+      });
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      
+      // Update tab button styles
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+      });
+      
+      // Hide all tab content
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+      });
+      
+      // Show selected tab content
+      const activeContent = document.querySelector(`.tab-content[data-tab="${tab}"]`);
+      if (activeContent) {
+        activeContent.classList.remove('hidden');
+      }
+      
+      // Show/hide controls based on tab
+      if (tab === 'repositories') {
+        controlsSection.classList.remove('hidden');
+      } else {
+        controlsSection.classList.add('hidden');
+      }
+      
+      // Render content for the selected tab
+      renderTabContent(tab);
+    }
+
+    function renderTabContent(tab) {
+      switch (tab) {
+        case 'repositories':
+          renderRepos();
+          break;
+        case 'pull-requests':
+          renderAllPRs();
+          break;
+        case 'issues':
+          renderAllIssues();
+          break;
+        case 'projects':
+          renderAllProjects();
+          break;
+      }
+    }
+
+    initTabs();
+
+    // ===========================
+    // Summary Header Update
+    // ===========================
+    function updateSummaryHeader() {
+      const totalRepos = allRepos.length;
+      const totalPRs = allRepos.reduce((sum, repo) => sum + (repo.pullRequests?.totalCount ?? 0), 0);
+      const totalIssues = allRepos.reduce((sum, repo) => sum + (repo.issues?.totalCount ?? 0), 0);
+      const totalProjects = allRepos.reduce((sum, repo) => {
+        const projects = repo.projectsV2?.nodes ?? [];
+        return sum + projects.filter(p => !p.closed).length;
+      }, 0);
+
+      document.getElementById('total-repos').textContent = totalRepos;
+      document.getElementById('total-prs').textContent = totalPRs;
+      document.getElementById('total-issues').textContent = totalIssues;
+      document.getElementById('total-projects').textContent = totalProjects;
+    }
 
     // ===========================
     // Main Fetch Function
@@ -128,7 +325,7 @@
             pinnedItems(first: 6, types: REPOSITORY) {
               nodes {
                 ... on Repository {
-                  name description stargazerCount updatedAt primaryLanguage { name }
+                  name description stargazerCount forkCount updatedAt primaryLanguage { name }
                   url isPrivate
                   pullRequests(first: 10, states: OPEN) {
                     nodes {
@@ -190,7 +387,7 @@
             }
             repositories(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
               nodes {
-                name description stargazerCount updatedAt primaryLanguage { name }
+                name description stargazerCount forkCount updatedAt primaryLanguage { name }
                 url isPrivate
                 pullRequests(first: 10, states: OPEN) {
                   nodes {
@@ -370,6 +567,7 @@
               name: r.name,
               description: r.description,
               stargazerCount: r.stargazers_count,
+              forkCount: r.forks_count,
               updatedAt: r.updated_at,
               primaryLanguage: { name: r.language },
               url: r.html_url,
@@ -386,6 +584,7 @@
           name: r.name,
           description: r.description,
           stargazerCount: r.stargazers_count,
+          forkCount: r.forks_count,
           updatedAt: r.updated_at,
           primaryLanguage: { name: r.language },
           url: r.html_url,
@@ -410,6 +609,9 @@
     // Render Repo Cards
     // ===========================
     function renderRepos() {
+      // Update summary header
+      updateSummaryHeader();
+      
       let filtered = allRepos.filter(r =>
         r.name.toLowerCase().includes(searchBox.value.toLowerCase()) ||
         (r.description && r.description.toLowerCase().includes(searchBox.value.toLowerCase()))
@@ -431,8 +633,8 @@
       }
 
       repoList.className = gridView
-        ? "max-w-5xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4"
-        : "max-w-5xl mx-auto p-4 flex flex-col gap-4";
+        ? "tab-content max-w-5xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4"
+        : "tab-content max-w-5xl mx-auto p-4 flex flex-col gap-4";
 
       repoList.innerHTML = "";
       filtered.forEach(repo => {
@@ -440,35 +642,45 @@
         card.className = "border border-gray-700 rounded-xl p-4 bg-gray-900 hover:bg-gray-800 transition";
 
         const prCount = repo.pullRequests?.totalCount ?? 0;
-        const prBadgeColor = prCount > 0 ? "bg-green-600" : "bg-gray-600";
+        const prBadgeColor = getPRBadgeColor(repo.pullRequests?.nodes ?? []);
         
         const issuesCount = repo.issues?.totalCount ?? 0;
-        const issuesBadgeColor = issuesCount > 0 ? "bg-orange-600" : "bg-gray-600";
+        const issuesBadgeColor = getIssuesBadgeColor(repo.issues?.nodes ?? []);
         
         const projectsCount = repo.projectsV2?.totalCount ?? 0;
         const projectsBadgeColor = projectsCount > 0 ? "bg-purple-600" : "bg-gray-600";
+        
+        const forksCount = repo.forkCount ?? 0;
 
         card.innerHTML = `
-          <div class="flex justify-between items-center gap-2">
+          <div class="flex justify-between items-start gap-2">
             <h2 class="text-xl font-semibold text-blue-300">
               <a href="${repo.url}" target="_blank" class="hover:underline">${repo.name}</a>
+              ${repo.isPinned ? `<span class="text-xs text-yellow-400 ml-2">📌 Pinned</span>` : ""}
             </h2>
-            <div class="flex items-center gap-2 flex-wrap">
-              ${repo.isPinned ? `<span class="text-xs text-yellow-400">📌 Pinned</span>` : ""}
-              <span class="pr-badge text-xs px-2 py-1 rounded-full ${prBadgeColor} text-white cursor-pointer" data-interactive title="Open Pull Requests">
-                🔀 ${prCount} PR${prCount !== 1 ? 's' : ''}
-              </span>
-              <span class="issues-badge text-xs px-2 py-1 rounded-full ${issuesBadgeColor} text-white cursor-pointer" data-interactive title="Open Issues">
-                🐛 ${issuesCount} Issue${issuesCount !== 1 ? 's' : ''}
-              </span>
-              <span class="projects-badge text-xs px-2 py-1 rounded-full ${projectsBadgeColor} text-white cursor-pointer" data-interactive title="Projects">
-                📊 ${projectsCount} Project${projectsCount !== 1 ? 's' : ''}
-              </span>
-            </div>
           </div>
           <p class="text-gray-400 text-sm mt-1">${repo.description ?? "No description"}</p>
+          
+          <!-- Enhanced Summary Metrics -->
+          <div class="flex flex-wrap gap-3 mt-3 text-xs">
+            <span class="flex items-center gap-1 text-gray-400" title="Stars">
+              ⭐ ${repo.stargazerCount ?? 0}
+            </span>
+            <span class="flex items-center gap-1 text-gray-400" title="Forks">
+              🍴 ${forksCount}
+            </span>
+            <span class="pr-badge px-2 py-1 rounded-full ${prBadgeColor} text-white cursor-pointer" data-interactive title="Open Pull Requests">
+              🔀 ${prCount}
+            </span>
+            <span class="issues-badge px-2 py-1 rounded-full ${issuesBadgeColor} text-white cursor-pointer" data-interactive title="Open Issues">
+              🐛 ${issuesCount}
+            </span>
+            <span class="projects-badge px-2 py-1 rounded-full ${projectsBadgeColor} text-white cursor-pointer" data-interactive title="Projects">
+              📊 ${projectsCount}
+            </span>
+          </div>
+          
           <div class="flex space-x-4 text-xs mt-2 text-gray-500">
-            <span>⭐ ${repo.stargazerCount ?? 0}</span>
             <span>🕒 ${new Date(repo.updatedAt).toLocaleDateString()}</span>
             <span>${repo.primaryLanguage?.name ?? ""}</span>
           </div>
@@ -622,6 +834,246 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    // ===========================
+    // Color-Coded Badge Functions
+    // ===========================
+    function getPRBadgeColor(prs) {
+      if (!prs || prs.length === 0) return "bg-gray-600";
+      
+      // Check for any PRs with conflicts (red)
+      const hasConflicts = prs.some(pr => pr.mergeable === "CONFLICTING");
+      if (hasConflicts) return "bg-red-600";
+      
+      // Check for any PRs with requested changes (yellow)
+      const hasChangesRequested = prs.some(pr => pr.reviewDecision === "CHANGES_REQUESTED");
+      if (hasChangesRequested) return "bg-yellow-600";
+      
+      // Check for any approved/ready to merge PRs (green)
+      const hasApproved = prs.some(pr => pr.reviewDecision === "APPROVED" || pr.mergeable === "MERGEABLE");
+      if (hasApproved) return "bg-green-600";
+      
+      return "bg-blue-600";
+    }
+
+    function getIssuesBadgeColor(issues) {
+      if (!issues || issues.length === 0) return "bg-gray-600";
+      
+      // Check for critical/bug labels (red)
+      const hasCritical = issues.some(issue => {
+        const labels = issue.labels?.nodes ?? [];
+        return labels.some(l => 
+          l.name.toLowerCase().includes('critical') || 
+          l.name.toLowerCase().includes('bug') ||
+          l.name.toLowerCase().includes('high')
+        );
+      });
+      if (hasCritical) return "bg-red-600";
+      
+      // Check for stale issues (yellow)
+      const hasStale = issues.some(issue => isIssueStale(issue.updatedAt));
+      if (hasStale) return "bg-yellow-600";
+      
+      return "bg-orange-600";
+    }
+
+    // ===========================
+    // Render All PRs Tab
+    // ===========================
+    function renderAllPRs() {
+      const allPRs = [];
+      allRepos.forEach(repo => {
+        const prs = repo.pullRequests?.nodes ?? [];
+        prs.forEach(pr => {
+          allPRs.push({ ...pr, repoName: repo.name, repoUrl: repo.url });
+        });
+      });
+
+      if (allPRs.length === 0) {
+        prListTab.innerHTML = `
+          <div class="text-center text-gray-500 py-8">
+            <p class="text-lg">🔀 No open pull requests</p>
+            <p class="text-sm mt-2">All PRs have been merged or closed!</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Sort PRs by creation date (newest first)
+      allPRs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      prListTab.innerHTML = `
+        <div class="space-y-3">
+          ${allPRs.map(pr => {
+            const statusIcon = getPRStatusIcon(pr);
+            const statusColor = getPRStatusColor(pr);
+            const reviewers = pr.reviews?.nodes?.map(r => r.author?.login).filter(Boolean).join(", ") || "No reviewers";
+            
+            return `
+              <div class="border border-gray-700 rounded-lg p-4 bg-gray-900 hover:bg-gray-800 transition">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <div class="text-xs text-gray-500 mb-1">
+                      <a href="${pr.repoUrl}" target="_blank" class="text-blue-400 hover:underline">${escapeHtml(pr.repoName)}</a>
+                    </div>
+                    <a href="${pr.url}" target="_blank" class="text-blue-300 hover:underline font-medium">
+                      #${pr.number} ${escapeHtml(pr.title)}
+                    </a>
+                    <div class="text-gray-500 text-xs mt-1">
+                      by ${escapeHtml(pr.author?.login ?? 'unknown')} • ${new Date(pr.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <span class="text-xs px-2 py-1 rounded ${statusColor}" title="${getStatusTitle(pr)}">
+                    ${statusIcon}
+                  </span>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-2">
+                  ${pr.isDraft ? `<span class="text-xs bg-gray-600 px-2 py-0.5 rounded">📝 Draft</span>` : ""}
+                  ${pr.reviewDecision === "APPROVED" ? `<span class="text-xs bg-green-700 px-2 py-0.5 rounded">✅ Approved</span>` : ""}
+                  ${pr.reviewDecision === "CHANGES_REQUESTED" ? `<span class="text-xs bg-yellow-700 px-2 py-0.5 rounded">⚠️ Changes Requested</span>` : ""}
+                  ${pr.mergeable === "MERGEABLE" ? `<span class="text-xs bg-green-600 px-2 py-0.5 rounded">🟢 Ready to merge</span>` : ""}
+                  ${pr.mergeable === "CONFLICTING" ? `<span class="text-xs bg-red-600 px-2 py-0.5 rounded">🔴 Conflicts</span>` : ""}
+                </div>
+                ${pr.reviews?.nodes?.length > 0 ? `
+                  <div class="text-xs text-gray-500 mt-1">
+                    👥 Reviewers: ${reviewers}
+                  </div>
+                ` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    // ===========================
+    // Render All Issues Tab
+    // ===========================
+    function renderAllIssues() {
+      const allIssues = [];
+      allRepos.forEach(repo => {
+        const issues = repo.issues?.nodes ?? [];
+        issues.forEach(issue => {
+          allIssues.push({ ...issue, repoName: repo.name, repoUrl: repo.url });
+        });
+      });
+
+      if (allIssues.length === 0) {
+        issuesListTab.innerHTML = `
+          <div class="text-center text-gray-500 py-8">
+            <p class="text-lg">🐛 No open issues</p>
+            <p class="text-sm mt-2">All issues have been resolved!</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Sort issues by creation date (newest first)
+      allIssues.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      issuesListTab.innerHTML = `
+        <div class="space-y-3">
+          ${allIssues.map(issue => {
+            const labels = issue.labels?.nodes ?? [];
+            const assignees = issue.assignees?.nodes?.map(a => a.login).filter(Boolean).join(", ") || "Unassigned";
+            const isStale = isIssueStale(issue.updatedAt);
+            
+            return `
+              <div class="border border-gray-700 rounded-lg p-4 bg-gray-900 hover:bg-gray-800 transition">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <div class="text-xs text-gray-500 mb-1">
+                      <a href="${issue.repoUrl}" target="_blank" class="text-blue-400 hover:underline">${escapeHtml(issue.repoName)}</a>
+                    </div>
+                    <a href="${issue.url}" target="_blank" class="text-blue-300 hover:underline font-medium">
+                      #${issue.number} ${escapeHtml(issue.title)}
+                    </a>
+                    <div class="text-gray-500 text-xs mt-1">
+                      by ${escapeHtml(issue.author?.login ?? 'unknown')} • ${new Date(issue.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  ${isStale ? `<span class="text-xs px-2 py-1 rounded bg-yellow-600" title="No activity for 30+ days">⚠️ Stale</span>` : ""}
+                </div>
+                <div class="flex flex-wrap gap-2 mt-2">
+                  ${labels.map(label => `
+                    <span class="text-xs px-2 py-0.5 rounded" style="background-color: #${label.color}; color: ${getContrastColor(label.color)}">
+                      ${escapeHtml(label.name)}
+                    </span>
+                  `).join("")}
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                  👤 Assignees: ${assignees}
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    // ===========================
+    // Render All Projects Tab
+    // ===========================
+    function renderAllProjects() {
+      const allProjects = [];
+      allRepos.forEach(repo => {
+        const projects = repo.projectsV2?.nodes ?? [];
+        projects.forEach(project => {
+          allProjects.push({ ...project, repoName: repo.name, repoUrl: repo.url });
+        });
+      });
+
+      if (allProjects.length === 0) {
+        const noTokenMessage = !token ? 
+          '<p class="text-sm mt-2">Projects require a GitHub token to access via the GraphQL API.</p>' :
+          '<p class="text-sm mt-2">No projects are associated with your repositories.</p>';
+        projectsListTab.innerHTML = `
+          <div class="text-center text-gray-500 py-8">
+            <p class="text-lg">📊 No projects found</p>
+            ${noTokenMessage}
+          </div>
+        `;
+        return;
+      }
+
+      projectsListTab.innerHTML = `
+        <div class="space-y-3">
+          ${allProjects.map(project => {
+            const itemCount = project.items?.totalCount ?? 0;
+            const statusColor = project.closed ? "bg-gray-600" : "bg-purple-600";
+            const statusText = project.closed ? "Closed" : "Open";
+            
+            return `
+              <div class="border border-gray-700 rounded-lg p-4 bg-gray-900 hover:bg-gray-800 transition">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <div class="text-xs text-gray-500 mb-1">
+                      <a href="${project.repoUrl}" target="_blank" class="text-blue-400 hover:underline">${escapeHtml(project.repoName)}</a>
+                    </div>
+                    <a href="${project.url}" target="_blank" class="text-blue-300 hover:underline font-medium">
+                      ${escapeHtml(project.title)}
+                    </a>
+                    ${project.shortDescription ? `
+                      <div class="text-gray-500 text-xs mt-1">
+                        ${escapeHtml(project.shortDescription)}
+                      </div>
+                    ` : ""}
+                  </div>
+                  <span class="text-xs px-2 py-1 rounded ${statusColor}" title="Project Status">
+                    ${statusText}
+                  </span>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-2">
+                  <span class="text-xs bg-gray-700 px-2 py-0.5 rounded">
+                    📋 ${itemCount} item${itemCount !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
     }
 
     // ===========================
