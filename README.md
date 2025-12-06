@@ -19,6 +19,8 @@ Built with **vanilla JavaScript**, **TailwindCSS**, and **GitHub’s GraphQL API
 - 🐛 **Issues** - Track open issues with labels, assignees, and stale indicators (30+ days)
 - 📊 **Projects** - Display GitHub Projects with item counts and open/closed status
 - ⚡ No frameworks or build steps — pure browser JavaScript  
+- 🗂️ **Dashboard Tabs** - Navigate between Repositories, PRs, Issues, and Projects views
+- 🌓 **Dark/Light Theme** - Toggle theme with persistent preference
 
 ---
 
@@ -56,8 +58,8 @@ Current implementation status:
 - ✅ **Phase 1: Pull Requests** - View open PRs with draft status, review decisions, and merge state
 - ✅ **Phase 2: Issues** - Track open issues with labels, assignees, and stale indicators
 - ✅ **Phase 3: Projects** - Display GitHub Projects with item counts
-- 🚧 **Phase 4: UI/UX Improvements** - Dashboard tabs, enhanced cards, summary header
-- 📋 **Phase 5: Advanced Reporting** - Analytics and activity timelines
+- ✅ **Phase 4: UI/UX Improvements** - Dashboard tabs, enhanced cards, summary header, dark/light theme toggle
+- 🚧 **Phase 5: Advanced Reporting** - Analytics and activity timelines (Next)
 
 See [ROADMAP.md](ROADMAP.md) for the full enhancement plan and implementation details.
 
